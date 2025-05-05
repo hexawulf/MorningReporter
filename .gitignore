@@ -1,3 +1,13 @@
+# Ignore build output
+/target/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# Runtime and config
 .env
-**/.env
+*.class
+*.log
 /bin/

@@ -1,8 +1,6 @@
 package dev.hexawulf.morningreporter;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.Map;
 import java.util.Properties;
 
@@ -17,43 +15,75 @@ import jakarta.mail.internet.MimeMessage;
 public class MorningReporter {
 
     public static void main(String[] args) {
-        // Load .env variables
+        // Load .env variables from classpath
         Map<String, String> env = EnvLoader.load(".env");
 
         StringBuilder reportContent = new StringBuilder();
 
+        // Run scripts individually
+        String systemReport = runScript("linuxws2_report.sh").trim();
+        String networkReport = runScript("linuxws2_netreport.sh").trim();
+
+        boolean hasContent = false;
+
         reportContent.append("=== System Report ===\n");
-        reportContent.append(runScript("scripts/linuxws2_report.sh")).append("\n");
+        if (!systemReport.isEmpty()) {
+            reportContent.append(systemReport).append("\n");
+            hasContent = true;
+        } else {
+            reportContent.append("⚠️ Script failed or returned no output.\n\n");
+        }
 
         reportContent.append("=== Network Report ===\n");
-        reportContent.append(runScript("scripts/linuxws2_netreport.sh")).append("\n");
+        if (!networkReport.isEmpty()) {
+            reportContent.append(networkReport).append("\n");
+            hasContent = true;
+        } else {
+            reportContent.append("⚠️ Script failed or returned no output.\n");
+        }
 
-        sendEmail(
-            env.get("SMTP_FROM"),
-            env.get("SMTP_TO"),
-            "Daily Linuxws2 Report 📋",
-            reportContent.toString(),
-            env
-        );
+        if (hasContent) {
+            sendEmail(
+                env.get("SMTP_FROM"),
+                env.get("SMTP_TO"),
+                "Daily Linuxws2 Report 📋",
+                reportContent.toString(),
+                env
+            );
+        } else {
+            System.out.println("🛑 Both scripts failed or returned no output. Email not sent.");
+        }
     }
 
-    private static String runScript(String scriptPath) {
+    private static String runScript(String relativeScriptName) {
         StringBuilder output = new StringBuilder();
         try {
-            ProcessBuilder builder = new ProcessBuilder("/bin/bash", scriptPath);
+            // Resolve the directory where the JAR is located
+            File jarDir = new File(
+                MorningReporter.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI()
+            ).getParentFile();
+
+            // Construct full path to the script inside "scripts" directory
+            File scriptFile = new File(jarDir, "scripts/" + relativeScriptName);
+
+            ProcessBuilder builder = new ProcessBuilder("sudo", "/bin/bash", scriptFile.getAbsolutePath());
             builder.redirectErrorStream(true);
             Process process = builder.start();
 
             BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()));
+                new InputStreamReader(process.getInputStream()));
             String line;
             while ((line = reader.readLine()) != null) {
                 output.append(line).append("\n");
             }
 
             process.waitFor();
-        } catch (IOException | InterruptedException e) {
-            output.append("Error running script: ").append(e.getMessage()).append("\n");
+        } catch (Exception e) {
+            output.append("⚠️ Error running script: ").append(e.getMessage()).append("\n");
         }
         return output.toString();
     }
