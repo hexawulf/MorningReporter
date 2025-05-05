@@ -1,0 +1,3 @@
+Main-Class: dev.hexawulf.morningreporter.MorningReporter
+Class-Path: lib/jakarta.mail-2.0.1.jar lib/jakarta.activation-api-2.1.1.jar lib/jakarta.activation-2.0.1.jar
+
